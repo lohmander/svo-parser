@@ -1,7 +1,11 @@
 import unittest
+import spacy
 from typing import Callable, List, Tuple
 
-from svo import nlp, get_object_phrases, get_verb_phrases
+from svo import get_object_phrases, get_verb_phrases
+
+
+nlp = spacy.load("en_core_web_trf")
 
 
 class ComparisonTestCase(unittest.TestCase):
