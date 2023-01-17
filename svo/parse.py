@@ -1,13 +1,21 @@
 from spacy.tokens.token import Token
 from spacy.tokens.doc import Doc
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Tuple, Optional
+
+# %%
 
 
 @dataclass
 class ObjectPhrase:
     target: Token
     phrase: List[Token]
+
+    def __str__(self):
+        return " ".join([str(t) for t in self.phrase])
+
+    def __hash__(self) -> int:
+        return hash(str(self.target.idx) + str(self))
 
 
 @dataclass
@@ -16,6 +24,9 @@ class VerbPhrase:
     subject: Optional[Token]
     object_: Optional[Token]
     phrase: Optional[List[Token]]
+
+    def __str__(self):
+        return " ".join([str(t) for t in self.phrase])
 
 
 def get_object_phrases(doc: Doc) -> List[ObjectPhrase]:
@@ -102,3 +113,7 @@ def get_verb_phrases(doc: Doc) -> List[VerbPhrase]:
                 vp = VerbPhrase(t, get_subject(t), None, None)
 
     return vps
+
+
+def get_svo(doc: Doc) -> Tuple[List[ObjectPhrase], List[VerbPhrase]]:
+    return get_object_phrases(doc), get_verb_phrases(doc)
