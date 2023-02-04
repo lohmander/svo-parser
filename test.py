@@ -42,6 +42,10 @@ class TestObjectPhrases(ComparisonTestCase):
                     "two swedish men walks down the street while snacking on ginger bread and throwing a ball to their dog",
                     ["men", "street", "bread", "ball", "dog"],
                 ),
+                (
+                    "a black honda motorcycle parked in front of a garage",
+                    ["motorcycle", "garage"],
+                ),
             ],
         )
 
@@ -53,6 +57,10 @@ class TestObjectPhrases(ComparisonTestCase):
                 (
                     "a tall and blonde boy throws a ball to a cute dog",
                     ["a tall and blonde boy", "a ball", "a cute dog"],
+                ),
+                (
+                    "a black honda motorcycle parked in front of a garage",
+                    ["a black honda motorcycle", "a garage"],
                 ),
             ],
         )
@@ -79,6 +87,10 @@ class TestVerbPhrases(ComparisonTestCase):
                 "two swedish men walks down the street while snacking on ginger bread and throwing a ball to their dog",
                 ["walks", "snacking", "throwing"],
             ),
+            (
+                "a black honda motorcycle parked in front of a garage",
+                ["parked"],
+            ),
         ]
 
         for text, verbs in texts:
@@ -86,6 +98,22 @@ class TestVerbPhrases(ComparisonTestCase):
             ops = get_verb_phrases(doc)
 
             self.assertListEqual([str(op.verb) for op in ops], verbs)
+
+    def test_verb_phrase(self):
+        self.compare_all(
+            get_verb_phrases,
+            lambda op: " ".join([str(o) for o in op.phrase]),
+            [
+                (
+                    "a black honda motorcycle parked in front of a garage",
+                    ["parked in front of"],
+                ),
+                (
+                    "two swedish men walks down the street while snacking on ginger bread and throwing a ball to their dog",
+                    ["walks down", "snacking on", "throwing"],
+                ),
+            ],
+        )
 
     def test_pronoun_substitution(self):
         self.compare_all(

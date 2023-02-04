@@ -1,3 +1,5 @@
+# %%
+
 from spacy.tokens.token import Token
 from spacy.tokens.doc import Doc
 from dataclasses import dataclass
@@ -29,6 +31,23 @@ class VerbPhrase:
         return " ".join([str(t) for t in self.phrase])
 
 
+def get_adp_phrase(t: Token) -> List[Token]:
+    if t.head.pos_ == "ADP":
+        try:
+            first_child = next(t.children)
+
+            if first_child.pos_ == "ADP":
+                return [t.head, t, first_child]
+        except StopIteration:
+            pass
+
+    return None
+
+
+def is_adp_phrase(t: Token) -> bool:
+    return get_adp_phrase(t) is not None
+
+
 def get_object_phrases(doc: Doc) -> List[ObjectPhrase]:
     ops = []
     last = -1
@@ -37,6 +56,9 @@ def get_object_phrases(doc: Doc) -> List[ObjectPhrase]:
         is_root = t.pos_ == "NOUN" and t.dep_ == "ROOT"
 
         if t.pos_ == "PRON":
+            continue
+
+        if is_adp_phrase(t):
             continue
 
         if is_root or t.dep_ in ["nsubj", "nsubjpass", "dobj", "iobj", "pobj", "attr"]:
@@ -63,6 +85,9 @@ def get_object_phrases(doc: Doc) -> List[ObjectPhrase]:
     return ops
 
 
+# %%
+
+
 def get_subject(t: Token) -> Token:
     if t.dep_ in ["acl"]:
         return t.head
@@ -78,6 +103,19 @@ def get_subject(t: Token) -> Token:
                 c = pron_sub
 
             return c
+
+
+def get_prep_object(t: Token) -> Tuple[List[Token], Token]:
+    for c in t.children:
+        # if the prep-child is an object, assign it and exit loop
+        if c.dep_ == "pobj":
+            # if the object is part of an adposition, follow it to
+            # the actual object
+            if adp_phrase := get_adp_phrase(c):
+                _, obj_token = get_prep_object(adp_phrase[-1])
+                return adp_phrase, obj_token
+
+            return [t], c
 
 
 def get_verb_phrases(doc: Doc) -> List[VerbPhrase]:
@@ -100,12 +138,9 @@ def get_verb_phrases(doc: Doc) -> List[VerbPhrase]:
             # if a child is a preposition, we follow the children of that
             # preposition to find a preposition object
             elif c.dep_ == "prep":
-                for ci in c.children:
-                    # if the prep-child is an object, assign it and exit loop
-                    if ci.dep_ == "pobj":
-                        vp.object_ = ci
-                        vp.phrase = [t, c]
-                        break
+                phrase_tokens, obj_token = get_prep_object(c)
+                vp.object_ = obj_token
+                vp.phrase = [t, *phrase_tokens]
 
             # add verb phrase if both subject and object is set
             if vp.subject and vp.object_:
@@ -115,5 +150,11 @@ def get_verb_phrases(doc: Doc) -> List[VerbPhrase]:
     return vps
 
 
+# %%
+
+
 def get_svo(doc: Doc) -> Tuple[List[ObjectPhrase], List[VerbPhrase]]:
     return get_object_phrases(doc), get_verb_phrases(doc)
+
+
+# %%
