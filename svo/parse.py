@@ -22,13 +22,16 @@ class ObjectPhrase:
 
 @dataclass
 class VerbPhrase:
-    verb: Token
+    target: Token
     subject: Optional[Token]
     object_: Optional[Token]
     phrase: Optional[List[Token]]
 
     def __str__(self):
         return " ".join([str(t) for t in self.phrase])
+
+    def __hash__(self) -> int:
+        return hash(str(self.verb.idx) + str(self))
 
 
 def get_adp_phrase(t: Token) -> List[Token]:
@@ -48,7 +51,7 @@ def is_adp_phrase(t: Token) -> bool:
     return get_adp_phrase(t) is not None
 
 
-def get_object_phrases(doc: Doc) -> List[ObjectPhrase]:
+def get_object_phrases(doc: Doc, skip_determiner=False) -> List[ObjectPhrase]:
     ops = []
     last = -1
 
@@ -63,21 +66,28 @@ def get_object_phrases(doc: Doc) -> List[ObjectPhrase]:
 
         if is_root or t.dep_ in ["nsubj", "nsubjpass", "dobj", "iobj", "pobj", "attr"]:
             subtree = list(t.subtree)
+            start_idx = 0
 
             if t.pos_ == "PRON" and "cl" in t.head.dep_:
                 t = t.head.head
 
             for i, c in enumerate(subtree):
+                # if we're skipping determiners, offset the subtree
+                if skip_determiner and c.pos_ == "DET":
+                    start_idx = i + 1
+
                 # if a new clause begins, end the subtree
-                if "cl" in c.dep_ or c.pos_ in ["PRON"]:
+                if "cl" in c.dep_ or c.pos_ in ["PRON", "ADP"]:
                     # only slice subtree if the child occurs after the target token
                     if t.i < c.i:
                         subtree = subtree[:i]
+                        break
 
             if subtree[0].i > last:
                 ops.append(
                     ObjectPhrase(
-                        target=t, phrase=list(doc[subtree[0].i : subtree[-1].i + 1])
+                        target=t,
+                        phrase=list(doc[subtree[start_idx].i : subtree[-1].i + 1]),
                     )
                 )
                 last = subtree[-1].i
@@ -115,7 +125,7 @@ def get_prep_object(t: Token) -> Tuple[List[Token], Token]:
                 _, obj_token = get_prep_object(adp_phrase[-1])
                 return adp_phrase, obj_token
 
-            return [t], c
+            return t, c
 
 
 def get_verb_phrases(doc: Doc) -> List[VerbPhrase]:
@@ -138,9 +148,20 @@ def get_verb_phrases(doc: Doc) -> List[VerbPhrase]:
             # if a child is a preposition, we follow the children of that
             # preposition to find a preposition object
             elif c.dep_ == "prep":
-                phrase_tokens, obj_token = get_prep_object(c)
+                phrase_stop_token, obj_token = get_prep_object(c)
                 vp.object_ = obj_token
-                vp.phrase = [t, *phrase_tokens]
+                phrase = []
+
+                for ti in t.subtree:
+                    # only add tokens to phrase if the target token has been added
+                    if len(phrase) > 0 or ti == t:
+                        phrase.append(ti)
+
+                    # stop iteration when we hit the stop token
+                    if ti == phrase_stop_token:
+                        break
+
+                vp.phrase = phrase
 
             # add verb phrase if both subject and object is set
             if vp.subject and vp.object_:
@@ -158,3 +179,17 @@ def get_svo(doc: Doc) -> Tuple[List[ObjectPhrase], List[VerbPhrase]]:
 
 
 # %%
+
+# import spacy
+
+# nlp = spacy.load("en_core_web_trf")
+
+
+# # %%
+
+# caption = "a blonde and short woman have a cute poodle in her lap"
+# caption = "a black honda motorcycle parked in front of a garage"
+# caption = "a trio of dogs sitting in their owner's lap in a red convertible"
+# caption = "a large passenger airplane flying through the air."
+
+# get_object_phrases(nlp(caption)), get_verb_phrases(nlp(caption))
