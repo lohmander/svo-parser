@@ -64,12 +64,33 @@ def get_object_phrases(doc: Doc, skip_determiner=False) -> List[ObjectPhrase]:
         if is_adp_phrase(t):
             continue
 
-        if is_root or t.dep_ in ["nsubj", "nsubjpass", "dobj", "iobj", "pobj", "attr"]:
+        is_noun_conj = t.pos_ in ["NOUN", "NUM"] and t.dep_ == "conj"
+
+        if (
+            is_root
+            or is_noun_conj
+            or t.dep_
+            in [
+                "nsubj",
+                "nsubjpass",
+                "dobj",
+                "iobj",
+                "pobj",
+                "attr",
+            ]
+        ):
             subtree = list(t.subtree)
             start_idx = 0
 
             if t.pos_ == "PRON" and "cl" in t.head.dep_:
                 t = t.head.head
+
+            if t.pos_ == "NUM":
+                try:
+                    if next(t.children).pos_ == "NOUN":
+                        continue
+                except StopIteration:
+                    continue
 
             for i, c in enumerate(subtree):
                 # if we're skipping determiners, offset the subtree
@@ -123,9 +144,13 @@ def get_prep_object(t: Token) -> Tuple[List[Token], Token]:
             # the actual object
             if adp_phrase := get_adp_phrase(c):
                 _, obj_token = get_prep_object(adp_phrase[-1])
-                return adp_phrase, obj_token
+                return adp_phrase[-1], obj_token
 
             return t, c
+        elif c.dep_ == "prep":
+            return get_prep_object(c)
+
+    return None, None
 
 
 def get_verb_phrases(doc: Doc) -> List[VerbPhrase]:
@@ -139,6 +164,7 @@ def get_verb_phrases(doc: Doc) -> List[VerbPhrase]:
         vp = VerbPhrase(t, get_subject(t), None, None)
 
         for c in t.children:
+            # print(t, c)
             # if a child is a direct or indirect object of the
             # verb, we just assume that it's the object of interaction
             if c.dep_ in ["dobj", "iobj"]:
@@ -149,7 +175,14 @@ def get_verb_phrases(doc: Doc) -> List[VerbPhrase]:
             # preposition to find a preposition object
             elif c.dep_ == "prep":
                 phrase_stop_token, obj_token = get_prep_object(c)
+
+                # do pronoun substitution for object as well, assuming it is referring to the
+                # subject itself. This is a bit of a hack, but it works for now.
+                if obj_token and obj_token.pos_ == "PRON":
+                    obj_token = vp.subject
+
                 vp.object_ = obj_token
+
                 phrase = []
 
                 for ti in t.subtree:
@@ -191,5 +224,10 @@ def get_svo(doc: Doc) -> Tuple[List[ObjectPhrase], List[VerbPhrase]]:
 # caption = "a black honda motorcycle parked in front of a garage"
 # caption = "a trio of dogs sitting in their owner's lap in a red convertible"
 # caption = "a large passenger airplane flying through the air."
+# doc = nlp(caption)
 
-# get_object_phrases(nlp(caption)), get_verb_phrases(nlp(caption))
+# res = get_object_phrases(doc, skip_determiner=True), get_verb_phrases(doc)
+# res
+
+
+# # %%
