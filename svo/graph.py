@@ -1,8 +1,12 @@
+# %%
+
 import numpy as np
 import networkx as nx
 from typing import List
 from spacy.tokens.doc import Doc
 from svo.parse import ObjectPhrase, VerbPhrase
+
+# %%
 
 
 def get_adjacency_matrix(
@@ -26,12 +30,12 @@ def get_networkx_graph(
     for o in objects:
         g.add_node(o)
 
-    target_node = {n.target: n for n in g.nodes}
+    target_node = {n.target.idx: n for n in g.nodes}
 
     for v in verbs:
         g.add_edge(
-            target_node[v.subject],
-            target_node[v.object_],
+            target_node[v.subject.idx],
+            target_node[v.object_.idx],
             verb=" ".join([str(p) for p in v.phrase]),
         )
 
